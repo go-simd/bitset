@@ -93,8 +93,17 @@ and converge toward scalar as the set leaves cache.
 https://portal.cfarm.net/, VSX, Go 1.26.4, June 2026): `And` over a 1 MiB set
 runs at ~8869 MB/s vs ~6048 MB/s scalar — **~1.5×**. Consistent with the
 size-dependent story above, this is an honest, modest margin: the logical ops are
-bandwidth-bound and converge to scalar out-of-cache. **s390x stays qemu-validated
-for correctness only; native throughput is pending** a GitHub-hosted IBM Z runner.
+bandwidth-bound and converge to scalar out-of-cache.
+
+**riscv64 is now measured on a real SpacemiT X60 (RVV 1.0)** (GCC Compile Farm,
+https://portal.cfarm.net/, Go 1.26.4, June 2026). Note riscv64 runs the **portable
+`math/bits` word loop**, not a dedicated RVV kernel (see the kernel table above),
+so the comparison is that loop vs the scalar reference, and the result is
+honestly **modest**: `And` is bandwidth-bound — roughly parity in-cache and
+**~1.5× scalar out-of-cache** (16 MiB: ~1420 MB/s vs ~959 MB/s); `Count` is
+**~1.2× scalar**. Consistent with the existing bandwidth-bound stance — no large
+win is claimed on this core. **s390x stays qemu-validated for correctness only;
+native throughput is pending** a GitHub-hosted IBM Z runner.
 
 ## Existing Go bit sets
 
