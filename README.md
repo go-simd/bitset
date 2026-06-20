@@ -89,8 +89,12 @@ The `Count`/`IntersectionCount` kernels are the clearest win (hardware popcount
 is far denser than a scalar `OnesCount64`); the logical ops are bandwidth-bound
 and converge toward scalar as the set leaves cache.
 
-ppc64le and s390x kernels are **qemu-validated** for correctness on every commit;
-native throughput numbers are pending real POWER/Z hardware.
+**ppc64le is now measured on real POWER10 silicon** (GCC Compile Farm,
+https://portal.cfarm.net/, VSX, Go 1.26.4, June 2026): `And` over a 1 MiB set
+runs at ~8869 MB/s vs ~6048 MB/s scalar — **~1.5×**. Consistent with the
+size-dependent story above, this is an honest, modest margin: the logical ops are
+bandwidth-bound and converge to scalar out-of-cache. **s390x stays qemu-validated
+for correctness only; native throughput is pending** a GitHub-hosted IBM Z runner.
 
 ## Existing Go bit sets
 
@@ -112,11 +116,18 @@ a caller-owned `[]uint64` and composes with either of the above.
 Every architecture is validated against an independent scalar oracle by a table
 test, an exhaustive size sweep across the SIMD-block/tail boundary, and the
 `FuzzAnd`/`FuzzOr`/`FuzzAndNot`/`FuzzXor`/`FuzzCount`/`FuzzCounts` fuzzers. CI
-runs amd64 and arm64 natively (with the fuzzers and a 100 % coverage gate) and
-riscv64/loong64/ppc64le/s390x under qemu (also gated at 100 % coverage). The
-s390x run additionally proves the big-endian path: `[]uint64` word ops and the
-byte/word-wise popcount reductions are endian-neutral, and the table + fuzz tests
-are the proof.
+runs amd64 and arm64 natively (with the fuzzers and a 100 % coverage gate),
+ppc64le natively on real POWER10 silicon (GCC Compile Farm, VSX, Go 1.26.4), and
+riscv64/loong64/s390x under qemu (also gated at 100 % coverage). The s390x run
+additionally proves the big-endian path: `[]uint64` word ops and the byte/word-
+wise popcount reductions are endian-neutral, and the table + fuzz tests are the
+proof.
+
+Beyond the six SIMD targets, the portable `math/bits` path is now build- and
+test-validated on a **seventh architecture, ppc64 (big-endian)**, on real POWER9
+silicon (GCC Compile Farm) — bit-exact on a big-endian target distinct from
+s390x's vector kernel. ppc64 BE carries no VSX build tag, so it takes the generic
+path. Framing: **six SIMD targets, validated on seven architectures.**
 
 ## Regenerating the assembly
 
