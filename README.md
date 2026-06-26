@@ -89,14 +89,14 @@ The `Count`/`IntersectionCount` kernels are the clearest win (hardware popcount
 is far denser than a scalar `OnesCount64`); the logical ops are bandwidth-bound
 and converge toward scalar as the set leaves cache.
 
-**ppc64le is now measured on real POWER10 silicon** (GCC Compile Farm,
-https://portal.cfarm.net/, VSX, Go 1.26.4, June 2026): `And` over a 1 MiB set
+**ppc64le is now measured on real POWER9 silicon** (GCC Compile Farm,
+https://portal.cfarm.net/, VSX, Go 1.26.4, 2026-06-26): `And` over a 1 MiB set
 runs at ~8869 MB/s vs ~6048 MB/s scalar — **~1.5×**. Consistent with the
 size-dependent story above, this is an honest, modest margin: the logical ops are
 bandwidth-bound and converge to scalar out-of-cache.
 
 **riscv64 is now measured on a real SpacemiT X60 (RVV 1.0)** (GCC Compile Farm,
-https://portal.cfarm.net/, Go 1.26.4, June 2026). Note riscv64 runs the **portable
+https://portal.cfarm.net/, Go 1.26.4, 2026-06-26). Note riscv64 runs the **portable
 `math/bits` word loop**, not a dedicated RVV kernel (see the kernel table above),
 so the comparison is that loop vs the scalar reference, and the result is
 honestly **modest**: `And` is bandwidth-bound — roughly parity in-cache and
@@ -126,7 +126,7 @@ Every architecture is validated against an independent scalar oracle by a table
 test, an exhaustive size sweep across the SIMD-block/tail boundary, and the
 `FuzzAnd`/`FuzzOr`/`FuzzAndNot`/`FuzzXor`/`FuzzCount`/`FuzzCounts` fuzzers. CI
 runs amd64 and arm64 natively (with the fuzzers and a 100 % coverage gate),
-ppc64le natively on real POWER10 silicon (GCC Compile Farm, VSX, Go 1.26.4), and
+ppc64le natively on real POWER9 silicon (GCC Compile Farm, VSX, Go 1.26.4), and
 riscv64/loong64/s390x under qemu (also gated at 100 % coverage). The s390x run
 additionally proves the big-endian path: `[]uint64` word ops and the byte/word-
 wise popcount reductions are endian-neutral, and the table + fuzz tests are the
