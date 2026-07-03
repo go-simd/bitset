@@ -102,8 +102,13 @@ so the comparison is that loop vs the scalar reference, and the result is
 honestly **modest**: `And` is bandwidth-bound — roughly parity in-cache and
 **~1.5× scalar out-of-cache** (16 MiB: ~1420 MB/s vs ~959 MB/s); `Count` is
 **~1.2× scalar**. Consistent with the existing bandwidth-bound stance — no large
-win is claimed on this core. **s390x stays qemu-validated for correctness only;
-native throughput is pending** a GitHub-hosted IBM Z runner.
+win is claimed on this core.
+
+**s390x is now measured on real IBM z15 silicon** (VXE2, native execution,
+2026-07-03, `-count=6`): the vector `VPOPCT` + `VSUMB`/`VSUMQF` `Count` kernel
+runs **~2.8× scalar**, and `And` **~1.6×** — consistent with the size-dependent
+story above (the popcount-backed `Count` is the clearest win; the bandwidth-bound
+logical ops keep a modest margin).
 
 ## Existing Go bit sets
 
