@@ -94,8 +94,8 @@ func genLogic(f *emit.File, name, vinsn string, andnot bool) {
 					Raw("ADD R4, R8, R10").
 					Raw("ADD R0, R8, R11").
 					Raw("VLD1 (R9), [V0.B16]"). // a[i..i+1]  (V0=a)
-					Raw("VLD1 (R10), [V1.B16]")  // b[i..i+1]  (V1=b)
-	emitCombine(b, vinsn, andnot)              // result in V0
+					Raw("VLD1 (R10), [V1.B16]") // b[i..i+1]  (V1=b)
+	emitCombine(b, vinsn, andnot) // result in V0
 	b.Raw("VST1 [V0.B16], (R11)").
 		Raw("ADD $2, R7, R7").
 		Raw("SUB $1, R6, R6").
@@ -112,9 +112,9 @@ func genCount(f *emit.File) {
 	b := arm64.NewFunc("countKernel", countSig(), 0)
 	b.LoadArg("a_base", "R0").
 		LoadArg("a_len", "R1").
-		Raw("MOVD $0, R2"). // sum
+		Raw("MOVD $0, R2").    // sum
 		Raw("LSR $1, R1, R6"). // blocks
-		Raw("MOVD $0, R7"). // word index
+		Raw("MOVD $0, R7").    // word index
 		Label("loop").
 		Raw("CBZ R6, done").
 		Raw("LSL $3, R7, R8").
@@ -143,7 +143,7 @@ func genPair(f *emit.File, name, vinsn string, andnot bool) {
 		LoadArg("b_base", "R2").
 		LoadArg("b_len", "R3")
 	minInto(b, "R1", "R3", "R1") // n = min(a_len, b_len)
-	b.Raw("MOVD $0, R4").       // sum
+	b.Raw("MOVD $0, R4").        // sum
 					Raw("LSR $1, R1, R6"). // blocks
 					Raw("MOVD $0, R7").    // word index
 					Label("loop").
@@ -152,8 +152,8 @@ func genPair(f *emit.File, name, vinsn string, andnot bool) {
 					Raw("ADD R0, R8, R9").
 					Raw("ADD R2, R8, R10").
 					Raw("VLD1 (R9), [V0.B16]"). // V0=a
-					Raw("VLD1 (R10), [V1.B16]")  // V1=b
-	emitCombine(b, vinsn, andnot)              // result in V0
+					Raw("VLD1 (R10), [V1.B16]") // V1=b
+	emitCombine(b, vinsn, andnot) // result in V0
 	b.Raw("VCNT V0.B16, V0.B16").
 		Raw("VUADDLV V0.B16, V0").
 		Raw("VMOV V0.D[0], R11").

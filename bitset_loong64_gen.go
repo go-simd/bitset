@@ -114,9 +114,9 @@ func genCount(f *emit.File) {
 	b := loong64.NewFunc("countKernel", countSig(), 0)
 	b.LoadArg("a_base", "R4").
 		LoadArg("a_len", "R5").
-		Raw("MOVV $0, R6").       // sum
-		Raw("SRLV $1, R5, R10").  // blocks
-		Raw("MOVV $0, R11").      // word index
+		Raw("MOVV $0, R6").      // sum
+		Raw("SRLV $1, R5, R10"). // blocks
+		Raw("MOVV $0, R11").     // word index
 		Label("loop").
 		Raw("BEQ R10, R0, done").
 		Raw("SLLV $3, R11, R12").

@@ -101,12 +101,12 @@ func genLogic(f *emit.File, name, vinsn string, andnot bool) {
 					Raw("MOVD $0, R8"). // word index
 					Label("loop").
 					Raw("CMPBEQ R7, $0, done").
-					Raw("SLD $3, R8, R9").    // byte offset
-					Raw("ADD R3, R9, R10").   // &a[i]
-					Raw("ADD R5, R9, R11").   // &b[i]
-					Raw("ADD R1, R9, R12").   // &dst[i]
-					Raw("VL (R10), V0").      // a
-					Raw("VL (R11), V1")       // b
+					Raw("SLD $3, R8, R9").  // byte offset
+					Raw("ADD R3, R9, R10"). // &a[i]
+					Raw("ADD R5, R9, R11"). // &b[i]
+					Raw("ADD R1, R9, R12"). // &dst[i]
+					Raw("VL (R10), V0").    // a
+					Raw("VL (R11), V1")     // b
 	emitCombine(b, vinsn, andnot) // -> V2
 	b.Raw("VST V2, (R12)").
 		Raw("ADD $2, R8, R8").
@@ -153,17 +153,17 @@ func genPair(f *emit.File, name, vinsn string, andnot bool) {
 		LoadArg("b_base", "R5").
 		LoadArg("b_len", "R6")
 	minInto(b, "R4", "R6", "R4")
-	b.Raw("MOVD $0, R2").    // sum
-					Raw("VZERO V5").       // zero vector for horizontal sums
-					Raw("SRD $1, R4, R7"). // blocks
-					Raw("MOVD $0, R8").    // word index
-					Label("loop").
-					Raw("CMPBEQ R7, $0, done").
-					Raw("SLD $3, R8, R9").
-					Raw("ADD R3, R9, R10").
-					Raw("ADD R5, R9, R11").
-					Raw("VL (R10), V0"). // a
-					Raw("VL (R11), V1")  // b
+	b.Raw("MOVD $0, R2"). // sum
+				Raw("VZERO V5").       // zero vector for horizontal sums
+				Raw("SRD $1, R4, R7"). // blocks
+				Raw("MOVD $0, R8").    // word index
+				Label("loop").
+				Raw("CMPBEQ R7, $0, done").
+				Raw("SLD $3, R8, R9").
+				Raw("ADD R3, R9, R10").
+				Raw("ADD R5, R9, R11").
+				Raw("VL (R10), V0"). // a
+				Raw("VL (R11), V1")  // b
 	emitCombine(b, vinsn, andnot) // -> V2
 	b.Raw("VPOPCT V2, V2").
 		Raw("VSUMB V2, V5, V2").

@@ -157,8 +157,8 @@ func genPair(f *emit.File, name, op string, andnot bool) {
 			// a &^ b = a & ^b. Use NOTQ + ANDQ (no BMI1 dependency, so the count
 			// path stays gated on POPCNT alone).
 			b.Raw("MOVQ %s, R12", bi). // R12 = b
-							Raw("NOTQ R12").          // R12 = ^b
-							Raw("ANDQ %s, R12", ai)   // R12 = a & ^b
+							Raw("NOTQ R12").        // R12 = ^b
+							Raw("ANDQ %s, R12", ai) // R12 = a & ^b
 		} else {
 			b.Raw("MOVQ %s, R12", ai).
 				Raw("%s %s, R12", op, bi) // R12 = a OP b

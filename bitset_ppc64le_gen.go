@@ -102,10 +102,10 @@ func genLogic(f *emit.File, name, vinsn string, andnot bool) {
 					Label("loop").
 					Raw("CMP R9, $0").
 					Raw("BEQ done").
-					Raw("SLD $3, R10, R11"). // byte offset
-					Raw("ADD R5, R11, R12"). // &a[i]
-					Raw("ADD R7, R11, R14"). // &b[i]
-					Raw("ADD R3, R11, R15"). // &dst[i]
+					Raw("SLD $3, R10, R11").       // byte offset
+					Raw("ADD R5, R11, R12").       // &a[i]
+					Raw("ADD R7, R11, R14").       // &b[i]
+					Raw("ADD R3, R11, R15").       // &dst[i]
 					Raw("LXVD2X (R12)(R0), VS32"). // V0 = a
 					Raw("LXVD2X (R14)(R0), VS33")  // V1 = b
 	emitCombine(b, vinsn, andnot)
@@ -123,9 +123,9 @@ func genCount(f *emit.File) {
 	b := ppc64.NewFunc("countKernel", countSig(), 0)
 	b.LoadArg("a_base", "R5").
 		LoadArg("a_len", "R6").
-		Raw("MOVD $0, R7").     // sum
-		Raw("SRD $1, R6, R9").  // blocks
-		Raw("MOVD $0, R10").    // word index
+		Raw("MOVD $0, R7").    // sum
+		Raw("SRD $1, R6, R9"). // blocks
+		Raw("MOVD $0, R10").   // word index
 		Label("loop").
 		Raw("CMP R9, $0").
 		Raw("BEQ done").
@@ -133,8 +133,8 @@ func genCount(f *emit.File) {
 		Raw("ADD R5, R11, R12").
 		Raw("LXVD2X (R12)(R0), VS32"). // V0
 		Raw("VPOPCNTD V0, V0").
-		Raw("MFVSRD VS32, R13").   // upper doubleword count
-		Raw("MFVSRLD VS32, R14").  // lower doubleword count
+		Raw("MFVSRD VS32, R13").  // upper doubleword count
+		Raw("MFVSRLD VS32, R14"). // lower doubleword count
 		Raw("ADD R13, R7, R7").
 		Raw("ADD R14, R7, R7").
 		Raw("ADD $2, R10, R10").
@@ -154,17 +154,17 @@ func genPair(f *emit.File, name, vinsn string, andnot bool) {
 		LoadArg("b_base", "R7").
 		LoadArg("b_len", "R8")
 	minInto(b, "R6", "R8", "R6")
-	b.Raw("MOVD $0, R4").     // sum
-					Raw("SRD $1, R6, R9").
-					Raw("MOVD $0, R10").
-					Label("loop").
-					Raw("CMP R9, $0").
-					Raw("BEQ done").
-					Raw("SLD $3, R10, R11").
-					Raw("ADD R5, R11, R12").
-					Raw("ADD R7, R11, R14").
-					Raw("LXVD2X (R12)(R0), VS32"). // V0 = a
-					Raw("LXVD2X (R14)(R0), VS33")  // V1 = b
+	b.Raw("MOVD $0, R4"). // sum
+				Raw("SRD $1, R6, R9").
+				Raw("MOVD $0, R10").
+				Label("loop").
+				Raw("CMP R9, $0").
+				Raw("BEQ done").
+				Raw("SLD $3, R10, R11").
+				Raw("ADD R5, R11, R12").
+				Raw("ADD R7, R11, R14").
+				Raw("LXVD2X (R12)(R0), VS32"). // V0 = a
+				Raw("LXVD2X (R14)(R0), VS33")  // V1 = b
 	emitCombine(b, vinsn, andnot) // -> V2
 	b.Raw("VPOPCNTD V2, V2").
 		Raw("MFVSRD VS34, R15").
