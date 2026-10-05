@@ -12,7 +12,7 @@ func or(dst, a, b []uint64)     { orScalarRef(dst, a, b) }
 func andNot(dst, a, b []uint64) { andNotScalarRef(dst, a, b) }
 func xor(dst, a, b []uint64)    { xorScalarRef(dst, a, b) }
 
-func count(a []uint64) int                 { return countScalarRef(a) }
-func intersectionCount(a, b []uint64) int  { return intersectionCountScalarRef(a, b) }
-func unionCount(a, b []uint64) int         { return unionCountScalarRef(a, b) }
-func differenceCount(a, b []uint64) int    { return differenceCountScalarRef(a, b) }
+func count(a []uint64) int                { return countScalarRef(a) }
+func intersectionCount(a, b []uint64) int { return intersectionCountScalarRef(a, b) }
+func unionCount(a, b []uint64) int        { return unionCountScalarRef(a, b) }
+func differenceCount(a, b []uint64) int   { return differenceCountScalarRef(a, b) }
