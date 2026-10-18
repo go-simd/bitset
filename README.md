@@ -22,7 +22,17 @@ n  := bitset.Count(a)             // total set bits (popcount)
 ni := bitset.IntersectionCount(a, b) // popcount(a & b),  no allocation
 nu := bitset.UnionCount(a, b)        // popcount(a | b)
 nd := bitset.DifferenceCount(a, b)   // popcount(a &^ b)
+
+bitset.FromBools(dst, bools)      // pack []bool into the words
+bitset.ToBools(bools, a)          // expand the words into []bool
 ```
+
+`FromBools` and `ToBools` convert between a bit set and a `[]bool` (one byte
+per element, the layout a dataframe's boolean column or a validity mask has):
+eight elements at a time, by a multiply that gathers eight bool bytes into a
+byte, and by a 256-entry table of eight bools per byte. They are portable Go
+on every architecture, 7x and 4x the per-element loop (Apple M4 Max, 2^20
+elements: 5.0 GB/s and 6.6 GB/s of bools); SIMD kernels may follow.
 
 Word `w` bit `b` is set bit `w*64+b`. The four logical ops write the first
 `min(len(dst), len(a), len(b))` words and may alias (`dst` can be `a` and/or
