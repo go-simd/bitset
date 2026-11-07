@@ -180,8 +180,115 @@ func genPair(f *emit.File, name, op string, andnot bool) {
 	f.Add(b.Func())
 }
 
+func boolsSig() abi.Signature {
+	return abi.LayoutArgs(
+		[]abi.Arg{abi.Slice("words"), abi.Slice("bools")},
+		[]abi.Arg{abi.Scalar("done", abi.Int64)},
+	)
+}
+
+// genPackBools emits packBoolsKernel(words []uint64, bools []byte) (done int):
+// AVX2, 64 bools (bytes 0 or 1) per word. VPSLLW $7 moves each byte's bit 0 to
+// its bit 7 (the other bits are zero, so nothing crosses a byte), and
+// VPMOVMSKB collects the 32 top bits of a YMM register into a GPR; two of
+// them make the word.
+func genPackBools(f *emit.File) {
+	b := amd64.NewFunc("packBoolsKernel", boolsSig(), 0)
+	b.LoadArg("words_base", "DI").
+		LoadArg("words_len", "CX").
+		LoadArg("bools_base", "SI").
+		LoadArg("bools_len", "DX").
+		Raw("SHRQ $6, DX"). // full 64-byte groups
+		Raw("CMPQ DX, CX").
+		Raw("CMOVQLT DX, CX"). // CX = n = min(words_len, groups)
+		Raw("XORQ R8, R8").    // word index
+		Raw("TESTQ CX, CX").
+		Raw("JZ done").
+		Label("loop").
+		Raw("MOVQ R8, R9").
+		Raw("SHLQ $6, R9").
+		Raw("VMOVDQU (SI)(R9*1), Y0").
+		Raw("VMOVDQU 32(SI)(R9*1), Y1").
+		Raw("VPSLLW $7, Y0, Y0").
+		Raw("VPSLLW $7, Y1, Y1").
+		Raw("VPMOVMSKB Y0, R10").
+		Raw("VPMOVMSKB Y1, R11").
+		Raw("SHLQ $32, R11").
+		Raw("ORQ R10, R11").
+		Raw("MOVQ R11, (DI)(R8*8)").
+		Raw("INCQ R8").
+		Raw("CMPQ R8, CX").
+		Raw("JB loop").
+		Label("done").
+		Raw("VZEROUPPER").
+		StoreRet("R8", "done").
+		Ret()
+	f.Add(b.Func())
+}
+
+// genUnpackBools emits unpackBoolsKernel(words []uint64, bools []byte) (done
+// int): AVX2, one word becomes 64 bool bytes. Each 32-bit half is broadcast to
+// every dword of a YMM register, VPSHUFB copies byte j/8 of the dword into
+// lane byte j (Y2: bytes 0,1 in the low 128-bit lane, 2,3 in the high one),
+// VPAND/VPCMPEQB against 1<<(j%8) (Y1) turn the selected bit into 0xFF or 0,
+// and VPAND with 1 (Y3) makes it a bool.
+func genUnpackBools(f *emit.File) {
+	b := amd64.NewFunc("unpackBoolsKernel", boolsSig(), 0)
+	b.LoadArg("words_base", "SI").
+		LoadArg("words_len", "CX").
+		LoadArg("bools_base", "DI").
+		LoadArg("bools_len", "DX").
+		Raw("SHRQ $6, DX").
+		Raw("CMPQ DX, CX").
+		Raw("CMOVQLT DX, CX").
+		Raw("XORQ R8, R8").
+		Raw("TESTQ CX, CX").
+		Raw("JZ done").
+		Raw("MOVQ $0x8040201008040201, AX").
+		Raw("VMOVQ AX, X1").
+		Raw("VPBROADCASTQ X1, Y1").
+		Raw("MOVQ $0x0101010101010101, AX").
+		Raw("VMOVQ AX, X3").
+		Raw("VPBROADCASTQ X3, Y3").
+		Raw("XORQ AX, AX").
+		Raw("VMOVQ AX, X2").
+		Raw("MOVQ $0x0101010101010101, AX").
+		Raw("VPINSRQ $1, AX, X2, X2"). // low lane: bytes 0 x8, 1 x8
+		Raw("MOVQ $0x0202020202020202, AX").
+		Raw("VMOVQ AX, X4").
+		Raw("MOVQ $0x0303030303030303, AX").
+		Raw("VPINSRQ $1, AX, X4, X4"). // high lane: bytes 2 x8, 3 x8
+		Raw("VINSERTI128 $1, X4, Y2, Y2").
+		Label("loop").
+		Raw("MOVQ R8, R9").
+		Raw("SHLQ $6, R9").
+		Raw("VPBROADCASTD (SI)(R8*8), Y0").
+		Raw("VPBROADCASTD 4(SI)(R8*8), Y4").
+		Raw("VPSHUFB Y2, Y0, Y0").
+		Raw("VPSHUFB Y2, Y4, Y4").
+		Raw("VPAND Y1, Y0, Y0").
+		Raw("VPAND Y1, Y4, Y4").
+		Raw("VPCMPEQB Y1, Y0, Y0").
+		Raw("VPCMPEQB Y1, Y4, Y4").
+		Raw("VPAND Y3, Y0, Y0").
+		Raw("VPAND Y3, Y4, Y4").
+		Raw("VMOVDQU Y0, (DI)(R9*1)").
+		Raw("VMOVDQU Y4, 32(DI)(R9*1)").
+		Raw("INCQ R8").
+		Raw("CMPQ R8, CX").
+		Raw("JB loop").
+		Label("done").
+		Raw("VZEROUPPER").
+		StoreRet("R8", "done").
+		Ret()
+	f.Add(b.Func())
+}
+
 func main() {
 	f := emit.NewFile("amd64")
+
+	genPackBools(f)
+	genUnpackBools(f)
 
 	genLogic(f, "andKernel", "VPAND", false)
 	genLogic(f, "orKernel", "VPOR", false)

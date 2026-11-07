@@ -18,15 +18,7 @@ import (
 func FromBools(dst []uint64, src []bool) int {
 	n := min(len(src), 64*len(dst))
 	b := boolBytes(src[:n])
-	w := 0
-	for ; 64*(w+1) <= n; w++ {
-		var word uint64
-		for k := range 8 {
-			x := binary.LittleEndian.Uint64(b[64*w+8*k:])
-			word |= (x * 0x0102040810204080 >> 56) << (8 * k)
-		}
-		dst[w] = word
-	}
+	w := packWordsPortable(dst, b, packBools(dst, b))
 	if rest := n - 64*w; rest > 0 {
 		var word uint64
 		for i, v := range src[64*w : n] {
@@ -39,6 +31,21 @@ func FromBools(dst []uint64, src []bool) int {
 	return n
 }
 
+// packWordsPortable packs the whole 64-byte groups of b into dst from word w
+// on, and returns the first word it did not write. A SIMD kernel, where there
+// is one, has already done the words before w.
+func packWordsPortable(dst []uint64, b []byte, w int) int {
+	for ; 64*(w+1) <= len(b); w++ {
+		var word uint64
+		for k := range 8 {
+			x := binary.LittleEndian.Uint64(b[64*w+8*k:])
+			word |= (x * 0x0102040810204080 >> 56) << (8 * k)
+		}
+		dst[w] = word
+	}
+	return w
+}
+
 // ToBools expands the bit set into bools: dst[i] is bit i of src, for i in
 // [0, n) where n = min(len(dst), 64*len(src)). It returns n.
 //
@@ -47,7 +54,7 @@ func FromBools(dst []uint64, src []bool) int {
 func ToBools(dst []bool, src []uint64) int {
 	n := min(len(dst), 64*len(src))
 	b := boolBytes(dst[:n])
-	i := 0
+	i := 64 * unpackBools(b, src)
 	for ; i+8 <= n; i += 8 {
 		binary.LittleEndian.PutUint64(b[i:], spread[byte(src[i>>6]>>(uint(i)&63))])
 	}

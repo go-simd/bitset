@@ -29,10 +29,47 @@ bitset.ToBools(bools, a)          // expand the words into []bool
 
 `FromBools` and `ToBools` convert between a bit set and a `[]bool` (one byte
 per element, the layout a dataframe's boolean column or a validity mask has):
-eight elements at a time, by a multiply that gathers eight bool bytes into a
-byte, and by a 256-entry table of eight bools per byte. They are portable Go
-on every architecture, 7x and 4x the per-element loop (Apple M4 Max, 2^20
-elements: 5.0 GB/s and 6.6 GB/s of bools); SIMD kernels may follow.
+64 elements per iteration on amd64 (AVX2) and arm64 (NEON), eight at a time in
+portable Go elsewhere (a multiply that gathers eight bool bytes into a byte, and
+a 256-entry table of eight bools per byte).
+
+- **amd64**: pack is `VPSLLW $7` + `VPMOVMSKB` (two 32-byte loads per word);
+  unpack broadcasts each 32-bit half, `VPSHUFB` copies the byte, `VPAND` +
+  `VPCMPEQB` test the bit, `VPAND` with 1 makes the bool.
+- **arm64**: pack is `VUSHL` (shift byte *i* of each 8-byte group by *i*) and
+  three rounds of `VADDP`, so four 16-byte loads reduce to the word; unpack is
+  `VTBL` (replicate each byte 8 times), `VUSHL` by 0..-7, `VAND` 1.
+- loong64, ppc64le, s390x, riscv64: the portable loops (not yet measured against
+  NumPy; no claim is made for them).
+
+Measured against NumPy 2.5.3 `np.packbits(..., bitorder="little")` and
+`np.unpackbits(..., bitorder="little")` on a `bool` array (GB/s counting one
+byte per element, single core pinned with `taskset`, 8 interleaved Go/NumPy
+rounds, medians; Go 1.27.3; the Go per-element loop is the control and did not
+move between rounds). Source: [`bench/`](bench) (`numpy_bools.py`, `interleave`).
+
+| host (load at the time)                    | op          | size | Go (GB/s) | NumPy (GB/s) | Go / NumPy |
+| ------------------------------------------ | ----------- | ---- | --------: | -----------: | ---------: |
+| cfarm424, Neoverse N1 (16.5 on 64 cores)   | `FromBools` | 2^10 |     21.03 |         0.85 |      24.7x |
+|                                            | `FromBools` | 2^16 |     24.65 |         9.49 |       2.6x |
+|                                            | `FromBools` | 2^20 |     10.72 |         9.05 |       1.2x |
+|                                            | `ToBools`   | 2^10 |     14.48 |         0.78 |      18.6x |
+|                                            | `ToBools`   | 2^16 |     17.09 |         7.45 |       2.3x |
+|                                            | `ToBools`   | 2^20 |     16.66 |         8.53 |       2.0x |
+| cfarm420, Zen 3 (2.5-3.3 on 128 cores)     | `FromBools` | 2^10 |     47.84 |         1.08 |      44.3x |
+|                                            | `FromBools` | 2^16 |     62.72 |        21.11 |       3.0x |
+|                                            | `FromBools` | 2^20 |     56.09 |        29.47 |       1.9x |
+|                                            | `ToBools`   | 2^10 |     39.95 |         1.00 |      40.0x |
+|                                            | `ToBools`   | 2^16 |     52.59 |        14.45 |       3.6x |
+|                                            | `ToBools`   | 2^20 |     49.42 |        18.05 |       2.7x |
+
+The 2^10 rows are dominated by NumPy's per-call overhead (about a microsecond
+from Python), so they say little about its kernel; 2^16 and 2^20 are the
+throughput comparison. Both hosts are shared machines: the load averages are
+those of other users' jobs on mostly idle cores, above the unloaded host the
+method asks for, so treat the ratios, not the absolute figures, as the result.
+Before the kernels, the portable Go was 3.3 and 3.9 GB/s on N1 (2^20) and 5.8
+and 6.2 GB/s on Zen 3: below NumPy at 2^16 and 2^20 (0.2x to 0.4x on Zen 3).
 
 Word `w` bit `b` is set bit `w*64+b`. The four logical ops write the first
 `min(len(dst), len(a), len(b))` words and may alias (`dst` can be `a` and/or
