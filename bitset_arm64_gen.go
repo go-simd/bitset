@@ -168,8 +168,106 @@ func genPair(f *emit.File, name, vinsn string, andnot bool) {
 	f.Add(b.Func())
 }
 
+func boolsSig() abi.Signature {
+	return abi.LayoutArgs(
+		[]abi.Arg{abi.Slice("words"), abi.Slice("bools")},
+		[]abi.Arg{abi.Scalar("done", abi.Int64)},
+	)
+}
+
+// genPackBools emits packBoolsKernel(words []uint64, bools []byte) (done int):
+// 64 bools (bytes 0 or 1) become one word per iteration. Four 16-byte loads;
+// USHL shifts byte i of every 8-byte group left by i (V4 = 0..7, 0..7); three
+// rounds of ADDP then add the eight shifted bytes of each group together, in
+// order (no carries: the bits are distinct), leaving the 8 result bytes in the
+// low half of V0, which is the word.
+func genPackBools(f *emit.File) {
+	b := arm64.NewFunc("packBoolsKernel", boolsSig(), 0)
+	b.LoadArg("words_base", "R0").
+		LoadArg("words_len", "R1").
+		LoadArg("bools_base", "R2").
+		LoadArg("bools_len", "R3").
+		Raw("LSR $6, R3, R3"). // full 64-byte groups available
+		Raw("CMP R3, R1").
+		Raw("CSEL LT, R1, R3, R1"). // n = min(words_len, groups)
+		Raw("MOVD $0x0706050403020100, R4").
+		Raw("VMOV R4, V4.D[0]").
+		Raw("VMOV R4, V4.D[1]").
+		Raw("MOVD $0, R7").
+		Label("loop").
+		Raw("CMP R1, R7").
+		Raw("BEQ done").
+		Raw("VLD1.P 64(R2), [V0.B16, V1.B16, V2.B16, V3.B16]").
+		Raw("VUSHL V4.B16, V0.B16, V0.B16").
+		Raw("VUSHL V4.B16, V1.B16, V1.B16").
+		Raw("VUSHL V4.B16, V2.B16, V2.B16").
+		Raw("VUSHL V4.B16, V3.B16, V3.B16").
+		Raw("VADDP V1.B16, V0.B16, V0.B16").
+		Raw("VADDP V3.B16, V2.B16, V2.B16").
+		Raw("VADDP V2.B16, V0.B16, V0.B16").
+		Raw("VADDP V0.B16, V0.B16, V0.B16").
+		Raw("VMOV V0.D[0], R10").
+		Raw("MOVD.P R10, 8(R0)").
+		Raw("ADD $1, R7, R7").
+		Raw("JMP loop").
+		Label("done").
+		StoreRet("R7", "done").
+		Ret()
+	f.Add(b.Func())
+}
+
+// genUnpackBools emits unpackBoolsKernel(words []uint64, bools []byte) (done
+// int): one word becomes 64 bool bytes per iteration. TBL against the word
+// replicates each of its bytes 8 times (V5..V8 hold the indices), USHL by 0,
+// -1 .. -7 brings bit k of each byte to the bottom of lane k, AND with 1 keeps it.
+func genUnpackBools(f *emit.File) {
+	b := arm64.NewFunc("unpackBoolsKernel", boolsSig(), 0)
+	b.LoadArg("words_base", "R0").
+		LoadArg("words_len", "R1").
+		LoadArg("bools_base", "R2").
+		LoadArg("bools_len", "R3").
+		Raw("LSR $6, R3, R3").
+		Raw("CMP R3, R1").
+		Raw("CSEL LT, R1, R3, R1")
+	// index vectors: lane 8h+k of V(5+j) selects byte 2j+h.
+	for j := range 4 {
+		lo := uint64(2*j) * 0x0101010101010101
+		hi := uint64(2*j+1) * 0x0101010101010101
+		b.Raw("MOVD $0x%016x, R4", lo).
+			Raw("VMOV R4, V%d.D[0]", 5+j).
+			Raw("MOVD $0x%016x, R4", hi).
+			Raw("VMOV R4, V%d.D[1]", 5+j)
+	}
+	b.Raw("MOVD $0xf9fafbfcfdfeff00, R4"). // shifts 0,-1,..,-7
+						Raw("VMOV R4, V9.D[0]").
+						Raw("VMOV R4, V9.D[1]").
+						Raw("MOVD $1, R4").
+						Raw("VDUP R4, V10.B16").
+						Raw("MOVD $0, R7").
+						Label("loop").
+						Raw("CMP R1, R7").
+						Raw("BEQ done").
+						Raw("MOVD.P 8(R0), R10").
+						Raw("VMOV R10, V4.D[0]")
+	for j := range 4 {
+		b.Raw("VTBL V%d.B16, [V4.B16], V%d.B16", 5+j, j).
+			Raw("VUSHL V9.B16, V%d.B16, V%d.B16", j, j).
+			Raw("VAND V10.B16, V%d.B16, V%d.B16", j, j)
+	}
+	b.Raw("VST1.P [V0.B16, V1.B16, V2.B16, V3.B16], 64(R2)").
+		Raw("ADD $1, R7, R7").
+		Raw("JMP loop").
+		Label("done").
+		StoreRet("R7", "done").
+		Ret()
+	f.Add(b.Func())
+}
+
 func main() {
 	f := emit.NewFile("arm64")
+
+	genPackBools(f)
+	genUnpackBools(f)
 
 	genLogic(f, "andKernel", "VAND", false)
 	genLogic(f, "orKernel", "VORR", false)
